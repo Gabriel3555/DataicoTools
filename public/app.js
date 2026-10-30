@@ -435,7 +435,8 @@ const KINDS = {
 
 function validate(kind, payload) {
   const doc = payload.invoice || payload.credit_note;
-  if (!config.authToken || !config.accountId) return 'Ingresa el Auth-token y el Dataico Account ID en la pestaña Configuración.';
+  if (!config.authToken) return 'Ingresa el Auth-token en la pestaña Configuración.';
+  if (!config.accountId) return 'Para emitir, ingresa el Dataico Account ID en la pestaña Configuración.';
   if (!doc.items?.length) return 'Agrega al menos un ítem.';
   if (doc.items.some((i) => !i.description || !(i.quantity > 0))) return 'Cada ítem necesita descripción y cantidad mayor a 0.';
   // Mismas validaciones que hace Softix antes de enviar a Dataico.
@@ -877,4 +878,4 @@ for (const name of ['issue_date', 'payment_date']) $('#form-factura').elements[n
 $('#form-nota').elements.issue_date.value = today();
 
 applyConfig(loadConfig());
-if (!config.authToken || !config.accountId) showTab('config');
+if (!config.authToken) showTab('config');

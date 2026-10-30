@@ -13,7 +13,7 @@ node server.js        # o: npm start  →  http://localhost:3000
 En la pestaña **Configuración** ingresa:
 
 - **Auth-token / Llave API**: en Dataico, *Opciones → Configuración → Llaves API* (o el Auth Token de la cuenta).
-- **Dataico Account ID**: el UUID que aparece en *Opciones → Configuración*.
+- **Dataico Account ID**: el UUID que aparece en *Opciones → Configuración*. Se necesita para crear o corregir facturas y notas crédito (va en `dataico_account_id`); las consultas solo usan el Auth-token.
 - **Ambiente**: `PRUEBAS` o `PRODUCCION`. En PRODUCCION la app pide confirmación antes de cada envío a la DIAN.
 
 El servidor no guarda nada. El token se queda en el navegador (`sessionStorage`, se borra al cerrar la pestaña), viaja en la cabecera `X-Dataico-Token` de cada petición y el servidor solo lo reenvía a Dataico (que no acepta llamadas directas desde el navegador). El Account ID, el ambiente y los valores por defecto se guardan en `localStorage` de ese navegador. El servidor solo reenvía las rutas de Dataico de la tabla de abajo.
