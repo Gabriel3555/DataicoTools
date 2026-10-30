@@ -37,7 +37,7 @@ Base: `https://api.dataico.com/direct/dataico_api/v2`, cabecera `Auth-token`.
 | Corregir factura rechazada | `PUT /invoices/{uuid}` (`{ actions, invoice }`) |
 | Crear nota crédito | `POST /credit_notes` (`{ actions, credit_note }`) |
 | Consultar nota crédito | `GET /credit_notes?number=NC1` o `GET /credit_notes/{uuid}` |
-| Numeraciones | `GET /numberings/{invoice\|credit-note\|debit-note\|support-doc}` |
+| Numeraciones | `GET /numberings/{invoice\|credit-note}` |
 
 ## Qué está confirmado y qué hay que validar
 

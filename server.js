@@ -22,7 +22,7 @@ const ALLOWED = [
   { method: 'POST', re: /^\/credit_notes$/ },
   { method: 'GET', re: /^\/credit_notes$/ },
   { method: 'GET', re: /^\/credit_notes\/[\w-]+$/ },
-  { method: 'GET', re: /^\/numberings\/(invoice|credit-note|debit-note|support-doc)$/ },
+  { method: 'GET', re: /^\/numberings\/(invoice|credit-note)$/ },
 ];
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
