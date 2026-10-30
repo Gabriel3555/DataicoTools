@@ -1,5 +1,5 @@
 // Interfaz para crear facturas y notas crédito en Dataico (API v2).
-// Todas las llamadas pasan por el servidor local (/api/dataico/...), que agrega el Auth-token.
+// Todas las llamadas pasan por el servidor (/api/dataico/...), que reenvía el Auth-token a Dataico.
 
 let config = {};
 
@@ -21,7 +21,7 @@ const today = () => new Date().toLocaleDateString('en-CA');
 async function api(path, options = {}) {
   const res = await fetch(path, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { 'Content-Type': 'application/json', 'X-Dataico-Token': config.authToken || '', ...(options.headers || {}) },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Error HTTP ${res.status}`);
@@ -35,7 +35,6 @@ async function api(path, options = {}) {
 function showTab(name) {
   $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + name));
-  if (name === 'historial') loadHistory();
 }
 $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
 
@@ -438,7 +437,7 @@ const KINDS = {
 
 function validate(kind, payload) {
   const doc = payload.invoice || payload.credit_note;
-  if (!config.hasToken || !config.accountId) return 'Configura el Auth-token y el Dataico Account ID en la pestaña Configuración.';
+  if (!config.authToken || !config.accountId) return 'Ingresa el Auth-token y el Dataico Account ID en la pestaña Configuración.';
   if (!doc.items?.length) return 'Agrega al menos un ítem.';
   if (doc.items.some((i) => !i.description || !(i.quantity > 0))) return 'Cada ítem necesita descripción y cantidad mayor a 0.';
   // Mismas validaciones que hace Softix antes de enviar a Dataico.
@@ -778,57 +777,45 @@ function syncNoRef() {
 $('#form-nota').elements.sin_factura_referenciada.addEventListener('change', syncNoRef);
 
 /* ------------------------------------------------------------------ */
-/* Historial                                                           */
-/* ------------------------------------------------------------------ */
-
-async function loadHistory() {
-  const tbody = $('#history-table tbody');
-  try {
-    const rows = await api('/api/history');
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="hint">Aún no has enviado documentos.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map((r, i) => `
-      <tr>
-        <td>${esc(new Date(r.at).toLocaleString('es-CO'))}</td>
-        <td>${r.kind === 'factura' ? (r.correction ? 'Factura (corrección)' : 'Factura') : 'Nota crédito'}</td>
-        <td>${esc(r.env)}</td>
-        <td>${esc(r.number)}</td>
-        <td>${esc(r.customer)}</td>
-        <td>${esc(r.status)}</td>
-        <td>${esc(r.dian_status)}</td>
-        <td>${r.pdf_url ? `<a href="${esc(r.pdf_url)}" target="_blank" rel="noopener">PDF</a>` : ''}
-            ${r.xml_url ? `<a href="${esc(r.xml_url)}" target="_blank" rel="noopener">XML</a>` : ''}</td>
-        <td>
-          <button type="button" class="secondary small" data-detail="${i}">Detalle</button>
-          ${r.kind === 'factura' && r.uuid && r.dian_status === 'DIAN_RECHAZADO' ? `<button type="button" class="small" data-fix="${i}">Corregir</button>` : ''}
-          ${r.kind === 'factura' && r.uuid && r.dian_status !== 'DIAN_RECHAZADO' ? `<button type="button" class="secondary small" data-nc="${esc(r.uuid)}">Nota crédito</button>` : ''}
-        </td>
-      </tr>`).join('');
-    $$('[data-nc]', tbody).forEach((b) => b.addEventListener('click', () => startCreditNote(b.dataset.nc)));
-    $$('[data-fix]', tbody).forEach((b) => b.addEventListener('click', () => {
-      const r = rows[Number(b.dataset.fix)];
-      startCorrection(r.uuid, r.request);
-    }));
-    $$('[data-detail]', tbody).forEach((b) => b.addEventListener('click', () => {
-      const r = rows[Number(b.dataset.detail)];
-      $('#json-editor').value = JSON.stringify(r.response, null, 2);
-      $('#json-error').textContent = '';
-      previewKind = null;
-      $('#json-send').hidden = true;
-      dialog.showModal();
-      dialog.addEventListener('close', () => ($('#json-send').hidden = false), { once: true });
-    }));
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="9" class="error">${esc(err.message)}</td></tr>`;
-  }
-}
-$('#btn-history').addEventListener('click', loadHistory);
-
-/* ------------------------------------------------------------------ */
 /* Configuración                                                       */
 /* ------------------------------------------------------------------ */
+
+// Nada se guarda en el servidor. El token vive en sessionStorage (se borra al cerrar la
+// pestaña); el resto de la configuración, en localStorage.
+const TOKEN_KEY = 'dataico-token';
+const CONFIG_KEY = 'dataico-config';
+const DEFAULT_CONFIG = {
+  accountId: '',
+  env: 'PRUEBAS',
+  invoicePrefix: 'SETP',
+  resolutionNumber: '18760000001',
+  creditNotePrefix: 'NC',
+  sendEmail: false,
+};
+
+function storageGet(storage, key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Sin almacenamiento disponible: la configuración dura solo mientras la página esté abierta.
+  }
+}
+
+function loadConfig() {
+  let saved = {};
+  try {
+    saved = JSON.parse(storageGet(localStorage, CONFIG_KEY)) || {};
+  } catch {}
+  return { ...DEFAULT_CONFIG, ...saved, authToken: storageGet(sessionStorage, TOKEN_KEY) || '' };
+}
 
 function applyConfig(cfg) {
   config = cfg;
@@ -844,7 +831,9 @@ function applyConfig(cfg) {
   c.resolutionNumber.value = cfg.resolutionNumber;
   c.creditNotePrefix.value = cfg.creditNotePrefix;
   c.sendEmail.checked = cfg.sendEmail;
-  $('#token-status').textContent = cfg.hasToken ? `Token guardado (${cfg.tokenHint}). Déjalo vacío para conservarlo.` : 'Aún no hay token guardado.';
+  $('#token-status').textContent = cfg.authToken
+    ? `Token ingresado (••••${cfg.authToken.slice(-4)}). Déjalo vacío para conservarlo.`
+    : 'Aún no hay token. Se borra al cerrar esta pestaña.';
 
   const fi = $('#form-factura').elements;
   fi.prefix.value = cfg.invoicePrefix;
@@ -855,30 +844,27 @@ function applyConfig(cfg) {
   fn.send_email.checked = cfg.sendEmail;
 }
 
-$('#form-config').addEventListener('submit', async (e) => {
+$('#form-config').addEventListener('submit', (e) => {
   e.preventDefault();
   const c = e.target.elements;
   if (c.env.value === 'PRODUCCION' && config.env !== 'PRODUCCION' &&
       !confirm('En PRODUCCION los documentos se emiten de verdad ante la DIAN. ¿Cambiar a PRODUCCION?')) {
     return;
   }
-  try {
-    applyConfig(await api('/api/config', {
-      method: 'POST',
-      body: JSON.stringify({
-        authToken: c.authToken.value,
-        accountId: c.accountId.value.trim(),
-        env: c.env.value,
-        invoicePrefix: c.invoicePrefix.value.trim(),
-        resolutionNumber: c.resolutionNumber.value.trim(),
-        creditNotePrefix: c.creditNotePrefix.value.trim(),
-        sendEmail: c.sendEmail.checked,
-      }),
-    }));
-    $('#token-status').textContent += ' Configuración guardada.';
-  } catch (err) {
-    alert(err.message);
-  }
+  // Un token vacío significa "no cambiar".
+  const authToken = c.authToken.value.trim() || config.authToken;
+  const saved = {
+    accountId: c.accountId.value.trim(),
+    env: c.env.value,
+    invoicePrefix: c.invoicePrefix.value.trim(),
+    resolutionNumber: c.resolutionNumber.value.trim(),
+    creditNotePrefix: c.creditNotePrefix.value.trim(),
+    sendEmail: c.sendEmail.checked,
+  };
+  storageSet(sessionStorage, TOKEN_KEY, authToken);
+  storageSet(localStorage, CONFIG_KEY, JSON.stringify(saved));
+  applyConfig({ ...saved, authToken });
+  $('#token-status').textContent += ' Configuración guardada.';
 });
 
 /* ------------------------------------------------------------------ */
@@ -888,7 +874,5 @@ $('#form-config').addEventListener('submit', async (e) => {
 for (const name of ['issue_date', 'payment_date']) $('#form-factura').elements[name].value = today();
 $('#form-nota').elements.issue_date.value = today();
 
-api('/api/config').then((cfg) => {
-  applyConfig(cfg);
-  if (!cfg.hasToken || !cfg.accountId) showTab('config');
-}).catch((err) => alert('No se pudo cargar la configuración: ' + err.message));
+applyConfig(loadConfig());
+if (!config.authToken || !config.accountId) showTab('config');

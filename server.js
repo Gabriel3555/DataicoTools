@@ -1,17 +1,15 @@
-// Servidor local para crear facturas y notas crédito en Dataico.
-// Sin dependencias: node server.js  →  http://localhost:3000
-// El Auth-token nunca sale al navegador; este servidor lo agrega al reenviar a Dataico.
+// Servidor para crear facturas y notas crédito en Dataico.
+// Sin dependencias. Local: node server.js  →  http://localhost:3000. En Vercel se exporta el manejador.
+// No guarda nada: el navegador manda el Auth-token en cada petición (cabecera X-Dataico-Token)
+// y este servidor solo lo reenvía a Dataico, que no acepta llamadas directas desde el navegador.
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = '127.0.0.1';
+const HOST = process.env.VERCEL ? undefined : '127.0.0.1';
 const DATAICO_BASE = 'https://api.dataico.com/direct/dataico_api/v2';
-const DATA_DIR = path.join(__dirname, 'data');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
-const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // Rutas de Dataico que se permiten reenviar.
@@ -26,39 +24,6 @@ const ALLOWED = [
   { method: 'GET', re: /^\/credit_notes\/[\w-]+$/ },
   { method: 'GET', re: /^\/numberings\/(invoice|credit-note|debit-note|support-doc)$/ },
 ];
-
-fs.mkdirSync(DATA_DIR, { recursive: true });
-
-function readJson(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(file, value) {
-  fs.writeFileSync(file, JSON.stringify(value, null, 2));
-}
-
-// Variables de entorno tienen prioridad sobre data/config.json.
-function getConfig() {
-  const saved = readJson(CONFIG_FILE, {});
-  return {
-    authToken: process.env.DATAICO_AUTH_TOKEN || saved.authToken || '',
-    accountId: process.env.DATAICO_ACCOUNT_ID || saved.accountId || '',
-    env: process.env.DATAICO_ENV || saved.env || 'PRUEBAS',
-    invoicePrefix: saved.invoicePrefix ?? 'SETP',
-    resolutionNumber: saved.resolutionNumber ?? '18760000001',
-    creditNotePrefix: saved.creditNotePrefix ?? 'NC',
-    sendEmail: saved.sendEmail ?? false,
-  };
-}
-
-function publicConfig() {
-  const { authToken, ...rest } = getConfig();
-  return { ...rest, hasToken: Boolean(authToken), tokenHint: authToken ? '••••' + authToken.slice(-4) : '' };
-}
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type });
@@ -81,46 +46,18 @@ function readBody(req) {
   });
 }
 
-function addHistory(kind, requestBody, status, data, method) {
-  const doc = (data && (data.invoice || data.credit_note)) || data || {};
-  const reqDoc = requestBody.invoice || requestBody.credit_note || {};
-  const history = readJson(HISTORY_FILE, []);
-  history.unshift({
-    at: new Date().toISOString(),
-    kind,
-    env: reqDoc.env,
-    status,
-    number: doc.number || reqDoc.number || '',
-    prefix: reqDoc.numbering?.prefix || '',
-    uuid: doc.uuid || '',
-    cufe: doc.cufe || doc.cude || '',
-    dian_status: doc.dian_status || '',
-    pdf_url: doc.pdf_url || '',
-    xml_url: doc.xml_url || '',
-    customer: reqDoc.customer?.company_name ||
-      [reqDoc.customer?.first_name, reqDoc.customer?.family_name].filter(Boolean).join(' ') || '',
-    invoice_id: reqDoc.invoice_id || '',
-    correction: method === 'PUT',
-    request: requestBody,
-    response: data,
-  });
-  writeJson(HISTORY_FILE, history.slice(0, 500));
-}
-
 async function proxy(req, res, dataicoPath, search) {
   const rule = ALLOWED.find((r) => r.method === req.method && r.re.test(dataicoPath));
   if (!rule) return send(res, 404, { error: 'Ruta no permitida: ' + req.method + ' ' + dataicoPath });
 
-  const cfg = getConfig();
-  if (!cfg.authToken) return send(res, 400, { error: 'Configura el Auth-token en la pestaña Configuración.' });
+  const authToken = String(req.headers['x-dataico-token'] || '').trim();
+  if (!authToken) return send(res, 400, { error: 'Ingresa el Auth-token en la pestaña Configuración.' });
 
   let bodyText;
-  let bodyJson;
-  const sendsBody = req.method === 'POST' || req.method === 'PUT';
-  if (sendsBody) {
+  if (req.method === 'POST' || req.method === 'PUT') {
     bodyText = await readBody(req);
     try {
-      bodyJson = JSON.parse(bodyText);
+      JSON.parse(bodyText);
     } catch {
       return send(res, 400, { error: 'El JSON enviado no es válido.' });
     }
@@ -130,7 +67,7 @@ async function proxy(req, res, dataicoPath, search) {
   try {
     upstream = await fetch(DATAICO_BASE + dataicoPath + search, {
       method: req.method,
-      headers: { 'Content-Type': 'application/json', 'Auth-token': cfg.authToken },
+      headers: { 'Content-Type': 'application/json', 'Auth-token': authToken },
       body: bodyText,
       signal: AbortSignal.timeout(60_000),
     });
@@ -151,9 +88,6 @@ async function proxy(req, res, dataicoPath, search) {
     }
   }
 
-  if (sendsBody) {
-    addHistory(dataicoPath.startsWith('/invoices') ? 'factura' : 'nota_credito', bodyJson, upstream.status, data, req.method);
-  }
   send(res, 200, { status: upstream.status, ok: upstream.ok, data });
 }
 
@@ -161,20 +95,6 @@ async function handle(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
 
-  if (p === '/api/config' && req.method === 'GET') return send(res, 200, publicConfig());
-  if (p === '/api/config' && req.method === 'POST') {
-    const incoming = JSON.parse((await readBody(req)) || '{}');
-    const saved = readJson(CONFIG_FILE, {});
-    for (const key of ['accountId', 'env', 'invoicePrefix', 'resolutionNumber', 'creditNotePrefix', 'sendEmail']) {
-      if (key in incoming) saved[key] = incoming[key];
-    }
-    // Un token vacío significa "no cambiar".
-    if (incoming.authToken) saved.authToken = incoming.authToken.trim();
-    if (saved.env !== 'PRUEBAS' && saved.env !== 'PRODUCCION') saved.env = 'PRUEBAS';
-    writeJson(CONFIG_FILE, saved);
-    return send(res, 200, publicConfig());
-  }
-  if (p === '/api/history' && req.method === 'GET') return send(res, 200, readJson(HISTORY_FILE, []));
   if (p.startsWith('/api/dataico/')) return proxy(req, res, p.slice('/api/dataico'.length), url.search);
 
   if (req.method === 'GET') {
@@ -187,11 +107,14 @@ async function handle(req, res) {
   send(res, 404, { error: 'No encontrado' });
 }
 
-http
-  .createServer((req, res) => {
-    handle(req, res).catch((err) => send(res, 500, { error: err.message }));
-  })
-  .listen(PORT, HOST, () => {
-    const cfg = getConfig();
-    console.log(`Facturas Dataico en http://localhost:${PORT}  (ambiente: ${cfg.env})`);
+function listener(req, res) {
+  handle(req, res).catch((err) => send(res, 500, { error: err.message }));
+}
+
+module.exports = listener;
+
+if (require.main === module) {
+  http.createServer(listener).listen(PORT, HOST, () => {
+    console.log(`Facturas Dataico en http://localhost:${PORT}`);
   });
+}

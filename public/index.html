@@ -16,7 +16,6 @@
     <button class="tab active" data-tab="factura">Nueva factura</button>
     <button class="tab" data-tab="nota">Nota crédito</button>
     <button class="tab" data-tab="consultar">Consultar</button>
-    <button class="tab" data-tab="historial">Historial</button>
     <button class="tab" data-tab="config">Configuración</button>
   </nav>
 
@@ -194,23 +193,12 @@
       <div class="result" id="result-consultar"></div>
     </section>
 
-    <!-- ===================== HISTORIAL ===================== -->
-    <section id="tab-historial" class="panel">
-      <div class="actions"><button type="button" id="btn-history" class="secondary">Actualizar</button></div>
-      <div class="table-wrap">
-        <table id="history-table">
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Ambiente</th><th>Número</th><th>Cliente</th><th>HTTP</th><th>DIAN</th><th>Archivos</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
     <!-- ===================== CONFIG ===================== -->
     <section id="tab-config" class="panel">
       <form id="form-config" autocomplete="off">
         <fieldset>
           <legend>Credenciales de Dataico</legend>
-          <p class="hint">Se encuentran en Dataico en <b>Opciones → Configuración</b> (Llaves API / Auth Token y Dataico Account ID). Se guardan solo en <code>data/config.json</code> de este equipo.</p>
+          <p class="hint">Se encuentran en Dataico en <b>Opciones → Configuración</b> (Llaves API / Auth Token y Dataico Account ID). No se guardan en el servidor: el token queda solo en esta pestaña del navegador y se borra al cerrarla.</p>
           <div class="grid">
             <label>Auth-token / Llave API<input type="password" name="authToken" placeholder="(sin cambios)"></label>
             <label>Dataico Account ID<input name="accountId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>

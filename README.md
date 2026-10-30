@@ -1,26 +1,22 @@
 # Facturas Dataico
 
-Aplicación local y sin dependencias para crear **facturas electrónicas** y **notas crédito** con la API v2 de Dataico.
+Aplicación sin dependencias para crear **facturas electrónicas** y **notas crédito** con la API v2 de Dataico. Se despliega en Vercel o se corre en local.
 
 ## Uso
 
+En Vercel basta con desplegar el repositorio; no hace falta configurar variables de entorno. En local:
+
 ```bash
-node server.js        # o: npm start
+node server.js        # o: npm start  →  http://localhost:3000
 ```
 
-Abre http://localhost:3000 y, en **Configuración**, ingresa:
+En la pestaña **Configuración** ingresa:
 
 - **Auth-token / Llave API**: en Dataico, *Opciones → Configuración → Llaves API* (o el Auth Token de la cuenta).
 - **Dataico Account ID**: el UUID que aparece en *Opciones → Configuración*.
 - **Ambiente**: `PRUEBAS` o `PRODUCCION`. En PRODUCCION la app pide confirmación antes de cada envío a la DIAN.
 
-También puedes pasarlos por variables de entorno (tienen prioridad sobre lo guardado):
-
-```bash
-DATAICO_AUTH_TOKEN=... DATAICO_ACCOUNT_ID=... DATAICO_ENV=PRUEBAS PORT=3000 node server.js
-```
-
-Las credenciales y el historial se guardan en `data/` (excluido en `.gitignore`). El token nunca se envía al navegador. El servidor solo escucha en `127.0.0.1`.
+El servidor no guarda nada. El token se queda en el navegador (`sessionStorage`, se borra al cerrar la pestaña), viaja en la cabecera `X-Dataico-Token` de cada petición y el servidor solo lo reenvía a Dataico (que no acepta llamadas directas desde el navegador). El Account ID, el ambiente y los valores por defecto se guardan en `localStorage` de ese navegador. El servidor solo reenvía las rutas de Dataico de la tabla de abajo.
 
 ## Funciones
 
@@ -29,7 +25,6 @@ Las credenciales y el historial se guardan en `data/` (excluido en `.gitignore`)
 - **Nota crédito**: busca la factura por número o UUID, carga sus ítems y referencia la factura con `invoice_id` (o `invoice_cufe`). Copia las retenciones de la factura y no deja continuar si la factura no está `DIAN_ACEPTADO`. También permite notas crédito **sin factura referenciada** (`sin_factura_referenciada: true` + cliente completo).
 - **Ver / editar JSON**: muestra el cuerpo exacto que se enviará y deja modificarlo antes de enviarlo.
 - **Consultar**: factura o nota crédito por número (`?number=`) o UUID, y numeraciones de la cuenta por módulo.
-- **Historial**: todo lo enviado, con enlaces a PDF/XML y un botón para crear una nota crédito desde una factura.
 
 ## Endpoints usados
 
