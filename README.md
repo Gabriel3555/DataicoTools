@@ -20,7 +20,7 @@ El servidor no guarda nada. El token se queda en el navegador (`sessionStorage`,
 
 ## Funciones
 
-- **Nueva factura**: numeración (prefijo, resolución, consecutivo), fechas, forma y medio de pago, orden de venta / pedido (`order_reference`) y orden de compra (se envía como primera línea de `notes`), cliente (con atajo de *consumidor final*), ítems con descuento e IVA, retenciones (`retentions`: retefuente, ReteIVA, ReteICA), anticipo (`prepayments`) y totales con neto a pagar. Antes de crear la factura revisa que el número no exista ya en Dataico (pasa cuando alguien facturó desde la plataforma).
+- **Nueva factura**: numeración (prefijo, resolución, consecutivo), fechas, forma y medio de pago, orden de venta / pedido (`order_reference`), cliente (con atajo de *consumidor final*), ítems con descuento e IVA, retenciones (`retentions`: retefuente, ReteIVA, ReteICA), anticipo (`prepayments`) y totales con neto a pagar. Antes de crear la factura revisa que el número no exista ya en Dataico (pasa cuando alguien facturó desde la plataforma).
 - **Corregir factura rechazada**: si la DIAN la rechaza, se muestran los `dian_messages` y el botón *Corregir y reenviar* carga la factura en el formulario y la reenvía con `PUT /invoices/{uuid}`, conservando el número.
 - **Nota crédito**: busca la factura por número, carga sus ítems y referencia la factura solo con su CUFE (`invoice_cufe`); no se usa el UUID. Copia las retenciones de la factura y no deja continuar si la factura no está `DIAN_ACEPTADO`. También permite notas crédito **sin factura referenciada** (`sin_factura_referenciada: true` + cliente completo).
 - **Ver / editar JSON**: muestra el cuerpo exacto que se enviará y deja modificarlo antes de enviarlo.

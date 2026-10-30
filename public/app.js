@@ -358,14 +358,10 @@ function itemsFromInvoice(inv) {
 /* ------------------------------------------------------------------ */
 
 const lines = (s) => s.split('\n').map((l) => l.trim()).filter(Boolean);
-const PURCHASE_ORDER_NOTE = 'Orden de compra: ';
 
 function buildInvoice() {
   const f = $('#form-factura').elements;
   const notes = lines(f.notes.value);
-  // order_reference lleva la orden de pedido (igual que Softix); la orden de compra va como nota en el PDF.
-  const purchaseOrder = f.purchase_order.value.trim();
-  if (purchaseOrder) notes.unshift(PURCHASE_ORDER_NOTE + purchaseOrder);
   const retentions = invoiceRet.get();
   const prepayment = Number(f.prepayment_amount.value) || 0;
   return {
@@ -613,10 +609,7 @@ function fillInvoiceForm({ actions = {}, invoice: inv = {} }) {
   if (inv.invoice_type_code) f.invoice_type_code.value = inv.invoice_type_code;
   f.order_reference.value = inv.order_reference || '';
 
-  const notes = [].concat(inv.notes || []);
-  const po = notes.findIndex((l) => String(l).startsWith(PURCHASE_ORDER_NOTE));
-  f.purchase_order.value = po >= 0 ? notes.splice(po, 1)[0].slice(PURCHASE_ORDER_NOTE.length) : '';
-  f.notes.value = notes.join('\n');
+  f.notes.value = [].concat(inv.notes || []).join('\n');
 
   fillCustomer($('#tab-factura .customer'), inv.customer);
   invoiceItems.set(itemsFromInvoice(inv));
