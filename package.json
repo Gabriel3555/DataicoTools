@@ -1,0 +1,13 @@
+{
+  "name": "facturas-dataico",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicación local para crear facturas y notas crédito electrónicas en Dataico",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facturas Dataico</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Facturas Dataico</h1>
+    <span id="env-badge" class="badge">…</span>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="factura">Nueva factura</button>
+    <button class="tab" data-tab="nota">Nota crédito</button>
+    <button class="tab" data-tab="consultar">Consultar</button>
+    <button class="tab" data-tab="historial">Historial</button>
+    <button class="tab" data-tab="config">Configuración</button>
+  </nav>
+
+  <main>
+    <!-- ===================== FACTURA ===================== -->
+    <section id="tab-factura" class="panel active">
+      <form id="form-factura" autocomplete="off">
+        <div id="correction-banner" class="banner" hidden></div>
+        <fieldset>
+          <legend>Numeración y fechas</legend>
+          <div class="grid">
+            <label>Prefijo<input name="prefix" required></label>
+            <label>Resolución DIAN<input name="resolution_number" required></label>
+            <label>Número<input name="number" placeholder="ej. 990000001" required></label>
+            <label class="check"><input type="checkbox" name="flexible" checked> Numeración flexible</label>
+            <label>Fecha de emisión<input type="date" name="issue_date" required></label>
+            <label>Forma de pago
+              <select name="payment_means_type">
+                <option value="DEBITO">Contado</option>
+                <option value="CREDITO">Crédito</option>
+              </select>
+            </label>
+            <label>Fecha de pago<input type="date" name="payment_date" required></label>
+            <label>Medio de pago
+              <input name="payment_means" list="payment-means" value="CASH">
+            </label>
+            <label>Tipo de factura
+              <select name="invoice_type_code">
+                <option value="FACTURA_VENTA">Factura de venta</option>
+                <option value="FACTURA_EXPORTACION">Factura de exportación</option>
+              </select>
+            </label>
+            <label>Orden de venta / pedido<input name="order_reference" placeholder="opcional"></label>
+            <label>Orden de compra<input name="purchase_order" placeholder="opcional"></label>
+          </div>
+          <label>Notas<textarea name="notes" rows="2" placeholder="Una nota por línea (opcional)"></textarea></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Cliente</legend>
+          <div class="customer" data-prefix="inv"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Ítems</legend>
+          <div class="items" id="items-factura"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Retenciones y anticipo</legend>
+          <p class="hint">Retenciones que te practica el cliente. ReteICA va en porcentaje (ej. 9,66 ‰ = 0.966).</p>
+          <div class="retentions" id="ret-factura"></div>
+          <div class="grid">
+            <label>Anticipo recibido<input type="number" name="prepayment_amount" min="0" step="any" placeholder="opcional"></label>
+            <label>Fecha del anticipo<input type="date" name="prepayment_date"></label>
+            <label>Descripción del anticipo<input name="prepayment_description" placeholder="ej. Abono inicial"></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Envío</legend>
+          <label class="check"><input type="checkbox" name="send_dian" checked> Enviar a la DIAN</label>
+          <label class="check"><input type="checkbox" name="send_email"> Enviar correo al cliente</label>
+        </fieldset>
+
+        <div class="actions">
+          <button type="button" class="secondary" data-preview="factura">Ver / editar JSON</button>
+          <button type="submit" id="btn-submit-factura">Crear factura</button>
+        </div>
+      </form>
+      <div class="result" id="result-factura"></div>
+    </section>
+
+    <!-- ===================== NOTA CRÉDITO ===================== -->
+    <section id="tab-nota" class="panel">
+      <form id="form-nota" autocomplete="off">
+        <fieldset>
+          <legend>Factura de referencia</legend>
+          <label class="check"><input type="checkbox" name="sin_factura_referenciada"> Nota crédito sin factura referenciada</label>
+          <div class="ref-only">
+            <div class="row">
+              <label class="grow">Número de factura (con prefijo) o UUID
+                <input name="lookup" placeholder="ej. SETP990000001">
+              </label>
+              <button type="button" id="btn-lookup-nota" class="secondary">Buscar</button>
+            </div>
+            <div class="grid">
+              <label>UUID de la factura (invoice_id)<input name="invoice_id"></label>
+              <label>CUFE (opcional, en vez del UUID)<input name="invoice_cufe"></label>
+            </div>
+            <div id="nota-invoice-summary" class="summary"></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Datos de la nota</legend>
+          <div class="grid">
+            <label>Prefijo<input name="prefix" required></label>
+            <label>Número<input name="number" required></label>
+            <label class="check"><input type="checkbox" name="flexible" checked> Numeración flexible</label>
+            <label>Fecha de emisión<input type="date" name="issue_date" required></label>
+            <label>Motivo
+              <select name="reason">
+                <option value="DEVOLUCION">Devolución parcial de bienes / no aceptación del servicio</option>
+                <option value="ANULACION">Anulación de la factura</option>
+                <option value="REBAJA">Rebaja o descuento parcial o total</option>
+                <option value="AJUSTE_PRECIO">Ajuste de precio</option>
+                <option value="DESCUENTO">Descuento comercial</option>
+                <option value="OTROS">Otros</option>
+              </select>
+            </label>
+          </div>
+          <label>Notas<textarea name="notes" rows="2" placeholder="Una nota por línea (opcional)"></textarea></label>
+        </fieldset>
+
+        <fieldset class="noref-only" hidden>
+          <legend>Cliente</legend>
+          <div class="customer" data-prefix="cn"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Ítems a acreditar</legend>
+          <div class="items" id="items-nota"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Retenciones</legend>
+          <p class="hint">Se copian de la factura de referencia al buscarla.</p>
+          <div class="retentions" id="ret-nota"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Envío</legend>
+          <label class="check"><input type="checkbox" name="send_dian" checked> Enviar a la DIAN</label>
+          <label class="check"><input type="checkbox" name="send_email"> Enviar correo al cliente</label>
+        </fieldset>
+
+        <div class="actions">
+          <button type="button" class="secondary" data-preview="nota">Ver / editar JSON</button>
+          <button type="submit">Crear nota crédito</button>
+        </div>
+      </form>
+      <div class="result" id="result-nota"></div>
+    </section>
+
+    <!-- ===================== CONSULTAR ===================== -->
+    <section id="tab-consultar" class="panel">
+      <fieldset>
+        <legend>Buscar documento</legend>
+        <div class="row">
+          <label>Tipo
+            <select id="lookup-kind">
+              <option value="factura">Factura</option>
+              <option value="nota">Nota crédito</option>
+            </select>
+          </label>
+          <label class="grow">Número (con prefijo) o UUID<input id="lookup-q" placeholder="ej. SETP990000001"></label>
+          <button type="button" id="btn-lookup" class="secondary">Buscar</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Numeraciones de la cuenta</legend>
+        <div class="row">
+          <label class="grow">Módulo
+            <select id="numbering-module">
+              <option value="invoice">Facturas</option>
+              <option value="credit-note">Notas crédito</option>
+              <option value="debit-note">Notas débito</option>
+              <option value="support-doc">Documento soporte</option>
+            </select>
+          </label>
+          <button type="button" id="btn-numberings" class="secondary">Consultar</button>
+        </div>
+      </fieldset>
+      <div class="result" id="result-consultar"></div>
+    </section>
+
+    <!-- ===================== HISTORIAL ===================== -->
+    <section id="tab-historial" class="panel">
+      <div class="actions"><button type="button" id="btn-history" class="secondary">Actualizar</button></div>
+      <div class="table-wrap">
+        <table id="history-table">
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Ambiente</th><th>Número</th><th>Cliente</th><th>HTTP</th><th>DIAN</th><th>Archivos</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== CONFIG ===================== -->
+    <section id="tab-config" class="panel">
+      <form id="form-config" autocomplete="off">
+        <fieldset>
+          <legend>Credenciales de Dataico</legend>
+          <p class="hint">Se encuentran en Dataico en <b>Opciones → Configuración</b> (Llaves API / Auth Token y Dataico Account ID). Se guardan solo en <code>data/config.json</code> de este equipo.</p>
+          <div class="grid">
+            <label>Auth-token / Llave API<input type="password" name="authToken" placeholder="(sin cambios)"></label>
+            <label>Dataico Account ID<input name="accountId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
+            <label>Ambiente
+              <select name="env">
+                <option value="PRUEBAS">PRUEBAS</option>
+                <option value="PRODUCCION">PRODUCCION</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint" id="token-status"></p>
+        </fieldset>
+        <fieldset>
+          <legend>Valores por defecto</legend>
+          <div class="grid">
+            <label>Prefijo de facturas<input name="invoicePrefix"></label>
+            <label>Resolución DIAN<input name="resolutionNumber"></label>
+            <label>Prefijo de notas crédito<input name="creditNotePrefix"></label>
+            <label class="check"><input type="checkbox" name="sendEmail"> Enviar correo por defecto</label>
+          </div>
+          <p class="hint">En PRUEBAS Dataico usa la resolución de prueba <code>18760000001</code>.</p>
+        </fieldset>
+        <div class="actions"><button type="submit">Guardar</button></div>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="json-dialog">
+    <form method="dialog">
+      <h2>JSON que se enviará a Dataico</h2>
+      <p class="hint">Puedes editarlo antes de enviarlo.</p>
+      <textarea id="json-editor" spellcheck="false"></textarea>
+      <p class="error" id="json-error"></p>
+      <div class="actions">
+        <button value="cancel" class="secondary">Cerrar</button>
+        <button value="send" id="json-send">Enviar este JSON</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="payment-means">
+    <!-- Valores tomados de la integración de Softix con Dataico. -->
+    <option value="CASH">Efectivo</option>
+    <option value="BANK_TRANSFER">Consignación bancaria</option>
+    <option value="DEBIT_CARD">Tarjeta débito</option>
+    <option value="CREDIT_CARD">Tarjeta crédito</option>
+    <option value="CHEQUE">Cheque</option>
+    <option value="DEBIT_TRANSFER">Transferencia débito</option>
+    <option value="CREDIT_TRANSFER">Transferencia crédito</option>
+    <option value="DEBIT_BANK_TRANSFER">Transferencia débito bancaria</option>
+    <option value="CREDIT_BANK_TRANSFER">Transferencia crédito bancaria</option>
+    <option value="DEBIT_INTERBANK_TRANSFER">Transferencia débito interbancaria</option>
+    <option value="DEBIT_ACH">Débito ACH</option>
+    <option value="CREDIT_ACH">Crédito ACH</option>
+    <option value="MUTUAL_AGREEMENT">Acuerdo mutuo</option>
+  </datalist>
+
+  <script src="app.js"></script>
+</body>
+</html>
