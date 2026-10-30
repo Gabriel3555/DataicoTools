@@ -97,15 +97,12 @@
           <label class="check"><input type="checkbox" name="sin_factura_referenciada"> Nota crédito sin factura referenciada</label>
           <div class="ref-only">
             <div class="row">
-              <label class="grow">Número de factura (con prefijo) o UUID
+              <label class="grow">Número de factura (con prefijo)
                 <input name="lookup" placeholder="ej. SETP990000001">
               </label>
               <button type="button" id="btn-lookup-nota" class="secondary">Buscar</button>
             </div>
-            <div class="grid">
-              <label>UUID de la factura (invoice_id)<input name="invoice_id"></label>
-              <label>CUFE (opcional, en vez del UUID)<input name="invoice_cufe"></label>
-            </div>
+            <label>CUFE de la factura (invoice_cufe)<input name="invoice_cufe"></label>
             <div id="nota-invoice-summary" class="summary"></div>
           </div>
         </fieldset>

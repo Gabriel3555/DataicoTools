@@ -418,8 +418,6 @@ function buildCreditNote() {
   if (noRef) {
     note.sin_factura_referenciada = true;
     note.customer = readCustomer($('#tab-nota .customer'));
-  } else if (f.invoice_id.value.trim()) {
-    note.invoice_id = f.invoice_id.value.trim();
   } else {
     note.invoice_cufe = f.invoice_cufe.value.trim();
   }
@@ -449,8 +447,8 @@ function validate(kind, payload) {
   if (badIva) return 'El IVA de cada ítem debe ser 0, 5, 16 o 19 %.';
   if ((doc.retentions || []).some((r) => !(r.tax_rate >= 0 && r.tax_rate <= 100))) return 'Las tasas de retención deben estar entre 0 y 100 %.';
   if ([].concat(doc.prepayments || []).some((pp) => !(pp.amount > 0))) return 'El anticipo debe ser mayor a 0.';
-  if (kind === 'nota' && !doc.sin_factura_referenciada && !doc.invoice_id && !doc.invoice_cufe) {
-    return 'Busca la factura de referencia o indica su UUID / CUFE.';
+  if (kind === 'nota' && !doc.sin_factura_referenciada && !doc.invoice_cufe) {
+    return 'Busca la factura de referencia o indica su CUFE.';
   }
   if (kind === 'nota' && !doc.sin_factura_referenciada && noteRefStatus && noteRefStatus !== 'DIAN_ACEPTADO') {
     return `La factura de referencia está en estado ${noteRefStatus}. Solo se puede hacer nota crédito a facturas aceptadas por la DIAN.`;
@@ -536,6 +534,8 @@ function renderDataicoResult(out, res, label, payload) {
     ['Fecha', doc.issue_date],
   ].filter(([, v]) => v);
   const links = [['PDF', doc.pdf_url], ['XML', doc.xml_url]].filter(([, v]) => v);
+  // La nota crédito busca la factura por número completo; si Dataico devuelve solo el consecutivo, se le antepone el prefijo.
+  const fullNumber = /^\d+$/.test(doc.number || '') ? (payload?.invoice?.numbering?.prefix || '') + doc.number : doc.number;
   const errors = data.errors ? (Array.isArray(data.errors) ? data.errors : [data.errors]) : [];
 
   out.innerHTML = `
@@ -547,7 +547,7 @@ function renderDataicoResult(out, res, label, payload) {
     ${data.raw ? `<p class="error">${esc(data.raw)}</p>` : ''}
     ${dianMsgs.length ? `<p><b>Mensajes de la DIAN</b></p><ul class="error">${dianMsgs.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
     ${doc.uuid && label === 'Factura' && rejected ? `<div class="actions" style="justify-content:flex-start"><button type="button" class="small" data-fix>Corregir y reenviar con el mismo número</button></div>` : ''}
-    ${ok && doc.uuid && label === 'Factura' && !rejected ? `<div class="actions" style="justify-content:flex-start"><button type="button" class="secondary small" data-nc="${esc(doc.uuid)}">Crear nota crédito para esta factura</button></div>` : ''}
+    ${ok && doc.number && doc.cufe && label === 'Factura' && !rejected ? `<div class="actions" style="justify-content:flex-start"><button type="button" class="secondary small" data-nc="${esc(fullNumber)}">Crear nota crédito para esta factura</button></div>` : ''}
     <details><summary>Respuesta completa</summary><pre>${esc(JSON.stringify(data, null, 2))}</pre></details>`;
   $('[data-nc]', out)?.addEventListener('click', (e) => startCreditNote(e.target.dataset.nc));
   $('[data-fix]', out)?.addEventListener('click', () => startCorrection(doc.uuid, payload));
@@ -713,7 +713,7 @@ $('#btn-numberings').addEventListener('click', async () => {
   }
 });
 
-// Estado DIAN de la factura de referencia cargada ('' si se escribió el UUID a mano).
+// Estado DIAN de la factura de referencia cargada ('' si se escribió el CUFE a mano).
 let noteRefStatus = '';
 
 // Nota crédito: buscar factura de referencia y precargar sus ítems y retenciones.
@@ -724,12 +724,16 @@ async function lookupForCreditNote(q) {
   try {
     const res = await fetchInvoice(q);
     const inv = res.data?.invoice || res.data || {};
-    if (!res.ok || !inv.uuid) {
+    if (!res.ok || !inv.number) {
       box.innerHTML = `<span class="error">No se encontró la factura (HTTP ${res.status}).</span> <details><summary>Respuesta</summary><pre>${esc(JSON.stringify(res.data, null, 2))}</pre></details>`;
       return;
     }
-    f.invoice_id.value = inv.uuid;
-    f.invoice_cufe.value = inv.cufe || '';
+    if (!inv.cufe) {
+      f.invoice_cufe.value = '';
+      box.innerHTML = '<span class="error">La factura no tiene CUFE todavía; no se le puede hacer nota crédito.</span>';
+      return;
+    }
+    f.invoice_cufe.value = inv.cufe;
     noteRefStatus = inv.dian_status || '';
     const c = inv.customer || {};
     const name = c.company_name || [c.first_name, c.family_name].filter(Boolean).join(' ');
@@ -751,22 +755,20 @@ async function lookupForCreditNote(q) {
   }
 }
 
-for (const name of ['invoice_id', 'invoice_cufe']) {
-  $('#form-nota').elements[name].addEventListener('input', () => (noteRefStatus = ''));
-}
+$('#form-nota').elements.invoice_cufe.addEventListener('input', () => (noteRefStatus = ''));
 
 $('#btn-lookup-nota').addEventListener('click', () => {
   const q = $('#form-nota').elements.lookup.value;
   if (q.trim()) lookupForCreditNote(q);
 });
 
-function startCreditNote(uuid) {
+function startCreditNote(number) {
   showTab('nota');
   const f = $('#form-nota').elements;
   f.sin_factura_referenciada.checked = false;
   syncNoRef();
-  f.lookup.value = uuid;
-  lookupForCreditNote(uuid);
+  f.lookup.value = number;
+  lookupForCreditNote(number);
 }
 
 function syncNoRef() {
